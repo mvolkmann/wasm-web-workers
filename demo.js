@@ -1,15 +1,18 @@
+const random = () => Math.random() * 100;
+
+// Generate random points.
+const COUNT = 100;
+const points = [];
+for (let i = 0; i < COUNT; i++) {
+  points.push({x: random(), y: random()});
+}
+
 // Allocate 1 page of shared linear memory.
 const sharedMemory = new WebAssembly.Memory({
   initial: 1,
   maximum: 2,
   shared: true
 });
-
-const points = [
-  {x: 1.2, y: 2.3},
-  {x: 3.4, y: 4.5},
-  {x: 5.6, y: 6.7}
-];
 
 // Copy point data into the shared linear memory.
 const array = new Float64Array(sharedMemory.buffer);
@@ -25,7 +28,7 @@ myWorker.onmessage = event => {
   if (event.data === 'translated') {
     console.log('demo.js: translated point array =', array);
   } else {
-    console.error('demo.js: unsupported command', command);
+    console.error('demo.js: unsupported message', event.data);
   }
 };
-myWorker.postMessage({command: 'run', length: points.length, sharedMemory});
+myWorker.postMessage({sharedMemory, length: COUNT, dx: 2, dy: 3});

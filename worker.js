@@ -3,25 +3,26 @@ const headers = {
   'Cross-Origin-Embedder-Policy': 'require-corp'
 };
 
-async function run(length, sharedMemory) {
+async function run(sharedMemory, length, dx, dy) {
   // Share the shared memory with the WASM module.
   const imports = {env: {memory: sharedMemory}};
   const res = fetch('demo.wasm', {headers});
   const m = await WebAssembly.instantiateStreaming(res, imports);
 
   const {translatePoints} = m.instance.exports;
-  //TODO: Need to use Atomics functions?
-  translatePoints(length, 2, 3);
+  //TODO: How can the WASM code use Atomics functions to
+  //TODO: safely perform concurrent updates to the shared memory?
+  translatePoints(length, dx, dy);
 
   // Inform the main thread that translation is finished.
   postMessage('translated');
 }
 
 onmessage = event => {
-  const {command, length, sharedMemory} = event.data;
-  if (command === 'run') {
-    run(length, sharedMemory);
+  const {dx, dy, length, sharedMemory} = event.data;
+  if (length && sharedMemory) {
+    run(sharedMemory, length, dx, dy);
   } else {
-    console.error('worker.js: unsupported command', command);
+    console.error('worker.js requires length and sharedMemory');
   }
 };
