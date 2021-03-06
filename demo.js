@@ -1,9 +1,10 @@
-const random = () => Math.random() * 100;
+//const random = () => Math.random() * 100;
+const random = () => Math.ceil(Math.random() * 10);
 
 // Generate random points.
-const COUNT = 100;
+const POINTS = 50;
 const points = [];
-for (let i = 0; i < COUNT; i++) {
+for (let i = 0; i < POINTS; i++) {
   points.push({x: random(), y: random()});
 }
 
@@ -23,12 +24,26 @@ for (const point of points) {
 }
 console.log('demo.js: untranslated point array =', array);
 
-const myWorker = new Worker('worker.js');
-myWorker.onmessage = event => {
-  if (event.data === 'translated') {
-    console.log('demo.js: translated point array =', array);
-  } else {
-    console.error('demo.js: unsupported message', event.data);
-  }
-};
-myWorker.postMessage({sharedMemory, length: COUNT, dx: 2, dy: 3});
+const WORKERS = 3;
+let finished = 0;
+const length = Math.ceil(POINTS / WORKERS);
+
+function work(start, length) {
+  const myWorker = new Worker('worker.js');
+  myWorker.onmessage = event => {
+    if (event.data === 'translated') {
+      finished++;
+      if (finished === WORKERS) {
+        console.log('demo.js: translated point array =', array);
+      }
+    } else {
+      console.error('demo.js: unsupported message', event.data);
+    }
+  };
+  myWorker.postMessage({sharedMemory, start, length, dx: 2, dy: 3});
+}
+
+for (let i = 0; i < WORKERS; i++) {
+  const start = i * length;
+  work(start, Math.min(POINTS - start, length));
+}
