@@ -1,5 +1,6 @@
 //TODO: Why is the WASM approach with multiple web workers
-//TODO: slower than the naive JavaScript approach ?
+//TODO: slower than the naive JavaScript approach?
+//TODO: Maybe updating a SharedArrayBuffer is slow.
 const POINTS = 10000;
 const WORKERS = 8;
 
