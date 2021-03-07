@@ -127,7 +127,8 @@ function work(start, length) {
           });
         }
         console.log('demo.js: actualRotations =', actualRotations);
-        //assertArraysEqual(expectedRotations, actualRotations);
+        //TODO: Why does this fail?
+        assertArraysEqual(expectedRotations, actualRotations);
       }
     } else {
       console.error('demo.js: unsupported message', data);
