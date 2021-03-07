@@ -3,7 +3,10 @@ const headers = {
   'Cross-Origin-Embedder-Policy': 'require-corp'
 };
 
-async function run(sharedMemory, start, length, dx, dy) {
+let rotatePoints;
+let translatePoints;
+
+async function initialize(sharedMemory) {
   //console.log('worker.js run: start =', start);
   //console.log('worker.js run: length =', length);
   // Share the shared memory with the WASM module.
@@ -18,8 +21,11 @@ async function run(sharedMemory, start, length, dx, dy) {
   };
   const res = fetch('demo.wasm', {headers});
   const m = await WebAssembly.instantiateStreaming(res, imports);
+  ({rotatePoints, translatePoints} = m.instance.exports);
+  postMessage('initialized');
+}
 
-  const {rotatePoints, translatePoints} = m.instance.exports;
+async function run(start, length, dx, dy) {
   //TODO: How can the WASM code use Atomics functions to
   //TODO: safely perform concurrent updates to the shared memory?
   //translatePoints(start, length, dx, dy);
@@ -31,13 +37,17 @@ async function run(sharedMemory, start, length, dx, dy) {
   rotatePoints(start, length, radians, cx, cy);
 
   // Inform the main thread that translation is finished.
-  postMessage('finished');
+  postMessage('ran');
 }
 
 onmessage = event => {
-  const {dx, dy, length, start, sharedMemory} = event.data;
-  if (length && sharedMemory) {
-    run(sharedMemory, start, length, dx, dy);
+  const {data} = event;
+  const {command} = data;
+  if (command === 'initialize') {
+    initialize(data.sharedMemory);
+  } else if (command === 'run') {
+    const {dx, dy, length, start} = data;
+    run(start, length, dx, dy);
   } else {
     console.error('worker.js requires length and sharedMemory');
   }

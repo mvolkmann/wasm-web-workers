@@ -96,7 +96,11 @@ console.log('demo.js: untranslated point array =', array);
 function work(start, length) {
   const myWorker = new Worker('worker.js');
   myWorker.onmessage = event => {
-    if (event.data === 'finished') {
+    const {data} = event;
+    if (data === 'initialized') {
+      startTimer();
+      myWorker.postMessage({command: 'run', start, length, dx, dy});
+    } else if (data === 'ran') {
       // If the last web worker has finished processing ...
       if (++finished === WORKERS) {
         stopTimer('WASM rotations');
@@ -126,16 +130,15 @@ function work(start, length) {
         //assertArraysEqual(expectedRotations, actualRotations);
       }
     } else {
-      console.error('demo.js: unsupported message', event.data);
+      console.error('demo.js: unsupported message', data);
     }
   };
-  myWorker.postMessage({sharedMemory, start, length, dx, dy});
+  myWorker.postMessage({command: 'initialize', sharedMemory});
 }
 
 // Start web workers
 let finished = 0;
 const length = Math.ceil(POINTS / WORKERS);
-startTimer();
 for (let i = 0; i < WORKERS; i++) {
   const start = i * length;
   work(start, Math.min(POINTS - start, length));
