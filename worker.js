@@ -22,7 +22,7 @@ async function run(sharedMemory, start, length, dx, dy) {
   const {rotatePoints, translatePoints} = m.instance.exports;
   //TODO: How can the WASM code use Atomics functions to
   //TODO: safely perform concurrent updates to the shared memory?
-  translatePoints(start, length, dx, dy);
+  //translatePoints(start, length, dx, dy);
 
   const cx = 0;
   const cy = 0;
@@ -31,7 +31,7 @@ async function run(sharedMemory, start, length, dx, dy) {
   rotatePoints(start, length, radians, cx, cy);
 
   // Inform the main thread that translation is finished.
-  postMessage('translated');
+  postMessage('finished');
 }
 
 onmessage = event => {
