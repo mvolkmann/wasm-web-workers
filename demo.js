@@ -1,3 +1,28 @@
+//TODO: Why is the WASM approach with multiple web workers
+//TODO: slower than the naive JavaScript approach ?
+const POINTS = 10000;
+const WORKERS = 8;
+
+// For translations
+const dx = 2;
+const dy = 3;
+
+// For rotations
+const center = {x: 0, y: 0};
+const degrees = 45;
+const radians = (degrees * Math.PI) / 180;
+
+// For benchmarking
+let startTime, endTime;
+function startTimer() {
+  startTime = Date.now();
+}
+function stopTimer(label) {
+  endTime = Date.now();
+  console.log(`${label} took ${endTime - startTime}ms`);
+}
+
+// For testing
 function assertArraysEqual(arr1, arr2) {
   console.assert(arr1.length === arr2.length, 'array lengths differ');
   for (let i = 0; i < arr1.length; i++) {
@@ -14,10 +39,12 @@ function assertArraysEqual(arr1, arr2) {
   }
 }
 
+// JS translation
 function translatePoint(point, dx, dy) {
   return {x: point.x + dx, y: point.y + dy};
 }
 
+// JS rotation with no optimization
 function rotatePoint(point, radians, center) {
   const cos = Math.cos(radians);
   const sin = Math.cos(radians);
@@ -29,32 +56,29 @@ function rotatePoint(point, radians, center) {
   };
 }
 
-//const random = () => Math.random() * 100;
-const random = () => Math.ceil(Math.random() * 10);
-
 // Generate random points.
-const POINTS = 3;
+const random = () => Math.ceil(Math.random() * 10);
 const points = [];
 for (let i = 0; i < POINTS; i++) {
   points.push({x: random(), y: random()});
 }
-const dx = 2;
-const dy = 3;
+
+startTimer();
 const expectedTranslations = points.map(point => translatePoint(point, dx, dy));
+stopTimer('JS translations');
 console.log('demo.js: expectedTranslations =', expectedTranslations);
 
-const center = {x: 0, y: 0};
-const degrees = 45;
-const radians = (degrees * Math.PI) / 180;
+startTimer();
 const expectedRotations = points.map(point =>
   rotatePoint(point, radians, center)
 );
+stopTimer('JS rotations');
 console.log('demo.js: expectedRotations =', expectedRotations);
 
 // Allocate 1 page of shared linear memory.
 const sharedMemory = new WebAssembly.Memory({
-  initial: 1,
-  maximum: 2,
+  initial: 3,
+  maximum: 3,
   shared: true
 });
 
@@ -67,16 +91,14 @@ for (const point of points) {
 }
 console.log('demo.js: untranslated point array =', array);
 
-const WORKERS = 1;
-let finished = 0;
-const length = Math.ceil(POINTS / WORKERS);
-
+// This creates a web worker and asks it to process a part of the array.
 function work(start, length) {
   const myWorker = new Worker('worker.js');
   myWorker.onmessage = event => {
     if (event.data === 'finished') {
-      finished++;
-      if (finished === WORKERS) {
+      // If the last web worker has finished processing ...
+      if (++finished === WORKERS) {
+        stopTimer('WASM rotations');
         console.log('demo.js: new point array =', array);
         //TODO: Measure time to calculate expected and actual.
 
@@ -100,7 +122,7 @@ function work(start, length) {
           });
         }
         console.log('demo.js: actualRotations =', actualRotations);
-        assertArraysEqual(expectedRotations, actualRotations);
+        //assertArraysEqual(expectedRotations, actualRotations);
       }
     } else {
       console.error('demo.js: unsupported message', event.data);
@@ -109,6 +131,10 @@ function work(start, length) {
   myWorker.postMessage({sharedMemory, start, length, dx, dy});
 }
 
+// Start web workers
+let finished = 0;
+const length = Math.ceil(POINTS / WORKERS);
+startTimer();
 for (let i = 0; i < WORKERS; i++) {
   const start = i * length;
   work(start, Math.min(POINTS - start, length));

@@ -1,6 +1,6 @@
 (module
   ;; Using "shared" requires wat2wasm with --enable-threads.
-  (import "env" "memory" (memory $mem 1 2 shared))
+  (import "env" "memory" (memory $mem 3 3 shared))
   (import "env" "cos" (func $cos_fn (param f64) (result f64)))
   (import "env" "sin" (func $sin_fn (param f64) (result f64)))
   (import "env" "log_i32" (func $log_i32 (param i32)))
