@@ -27,7 +27,7 @@ not plain Firefox, browse `about:config` and set
 This does not work in Safari.
 
 The primary reasons that performing the transformations in workers
-is faster than not using workers (see code in `no-wasm` directory) are:
+is faster than not using workers (see code in `without-wasm` directory) are:
 
 1. The use of a SharedArrayBuffer and a Float64Array view over it
    does not require hash lookups for every x/y value access.
