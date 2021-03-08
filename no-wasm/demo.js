@@ -1,12 +1,5 @@
 const POINTS = 1_000_000;
 //const POINTS = 10;
-//const PAGE_SIZE = 64; // KB
-//const PAGE_BYTES = PAGE_SIZE * 1024;
-//const PAGES = Math.ceil((POINTS * 16) / PAGE_BYTES);
-//console.log('demo.js x: PAGES =', PAGES);
-const PAGES = 245; // enough for one million points
-// Must change the numbers in the `(import "env" "memory"`
-// line in demo.wat to match this!
 const WORKERS = 8;
 
 // For translations
@@ -93,12 +86,6 @@ for (let i = 0; i < POINTS; i++) {
   points.push({x: random(), y: random()});
 }
 console.log('demo.js: points =', points);
-/*
-const points = [
-  {x: 3, y: 0},
-  {x: 0, y: 4}
-];
-*/
 
 startTimer();
 const expectedTranslations = points.map(point => translatePoint(point, dx, dy));
@@ -113,21 +100,14 @@ stopTimer('JS rotations');
 console.log('demo.js: expectedRotations =', expectedRotations);
 
 function createWorkers() {
-  // Allocate 1 page of shared linear memory.
-  const sharedMemory = new WebAssembly.Memory({
-    initial: PAGES,
-    maximum: PAGES,
-    shared: true
-  });
-
-  // Copy point data into the shared linear memory.
-  array = new Float64Array(sharedMemory.buffer);
+  // Copy point data into a Float64Array.
+  const sab = new SharedArrayBuffer(points.length * 2 * 8);
+  array = new Float64Array(sab);
   let index = 0;
   for (const point of points) {
     array[index++] = point.x;
     array[index++] = point.y;
   }
-  //console.info('demo.js createWorkers: original point array =', array);
 
   let createdCount = 0;
   return new Promise(resolve => {
@@ -137,7 +117,7 @@ function createWorkers() {
       worker.onmessage = () => {
         if (++createdCount === WORKERS) resolve();
       };
-      worker.postMessage({command: 'initialize', sharedMemory});
+      worker.postMessage({command: 'initialize', sharedArrayBuffer: sab});
     }
   });
 }

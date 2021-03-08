@@ -71,6 +71,6 @@ onmessage = event => {
   } else if (command === 'translate') {
     translateWasm(data.start, data.length, data.dx, data.dy);
   } else {
-    console.error('worker.js requires length and sharedMemory');
+    console.error('worker.js unsupported command:', command);
   }
 };
