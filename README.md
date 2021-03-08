@@ -7,14 +7,15 @@ and calling a WASM function to modify it.
 
 To build and run this:
 
+- cd to either `with-wasm` or `without-wasm`
 - enter `wat2wasm demo.wat --enable-threads`
 - start a local HTTP file server
 - browse `localhost:{port}`
 
 This works in Chrome.
 
-Other browsers have an issue with this line
-that passes the shared memory to a Web Worker:
+Other browsers have an issue running the `with-wasm` version
+with this line that passes the shared memory to a Web Worker:
 
 ```js
 worker.postMessage({command: 'initialize', sharedMemory});
@@ -24,7 +25,8 @@ To get this to work in Firefox Developer Edition,
 not plain Firefox, browse `about:config` and set
 `dom.postMessage.sharedArrayBuffer.bypassCOOP_COEP.insecure.enabled` to `true`.
 
-This does not work in Safari.
+Neither version works in Safari
+because it does not yet support `SharedArrayBuffer`.
 
 The primary reasons that performing the transformations in workers
 is faster than not using workers (see code in `without-wasm` directory) are:
