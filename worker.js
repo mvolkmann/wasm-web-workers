@@ -66,8 +66,8 @@ onmessage = event => {
     //TODO: It seems that doing rotate calculations in JS just as fast as
     //TODO: using WASM, so the primary speed improvement seems to come from
     //TODO: using multiple Web Workers, not from using WASM.
-    //rotateWasm(data.start, data.length, data.radians, data.center);
-    rotateJs(data.start, data.length, data.radians, data.center);
+    rotateWasm(data.start, data.length, data.radians, data.center);
+    //rotateJs(data.start, data.length, data.radians, data.center);
   } else if (command === 'translate') {
     translateWasm(data.start, data.length, data.dx, data.dy);
   } else {
