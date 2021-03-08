@@ -1,8 +1,12 @@
-//TODO: Why is the WASM approach with multiple web workers
-//TODO: slower than the naive JavaScript approach?
-//TODO: Maybe updating a SharedArrayBuffer is slow.
-const POINTS = 10000;
-const WORKERS = 8;
+const POINTS = 1000000;
+//const PAGE_SIZE = 64; // KB
+//const PAGE_BYTES = PAGE_SIZE * 1024;
+//const PAGES = Math.ceil((POINTS * 16) / PAGE_BYTES);
+//console.log('demo.js x: PAGES =', PAGES);
+const PAGES = 245; // enough for one million points
+// Must change the numbers in the `(import "env" "memory"`
+// line in demo.wat to match this!
+const WORKERS = 1;
 
 // For translations
 const dx = 2;
@@ -10,8 +14,15 @@ const dy = 3;
 
 // For rotations
 const center = {x: 0, y: 0};
-const degrees = 45;
+const degrees = 90; //45;
 const radians = (degrees * Math.PI) / 180;
+const cos = Math.cos(radians);
+const sin = Math.sin(radians);
+const constantX = center.x - center.x * cos + center.y * sin;
+const constantY = center.y - center.x * sin - center.y * cos;
+
+let array;
+let workers = [];
 
 // For benchmarking
 let startTime, endTime;
@@ -20,22 +31,26 @@ function startTimer() {
 }
 function stopTimer(label) {
   endTime = Date.now();
-  console.log(`${label} took ${endTime - startTime}ms`);
+  console.info(`${label} took ${endTime - startTime}ms`);
 }
 
 // For testing
-function assertArraysEqual(arr1, arr2) {
-  console.assert(arr1.length === arr2.length, 'array lengths differ');
-  for (let i = 0; i < arr1.length; i++) {
-    const point1 = arr1[i];
-    const point2 = arr2[i];
+function assertArraysEqual(expected, actual) {
+  console.assert(
+    expected.length === actual.length,
+    `expected array length ${expected.length} but got ${actual.length}`
+  );
+
+  for (let i = 0; i < expected.length; i++) {
+    const expectedPt = expected[i];
+    const actualPt = actual[i];
     console.assert(
-      point1.x === point2.x,
-      `x values of points at index ${i} differ`
+      expectedPt.x === actualPt.x,
+      `expected x at index ${i} to be ${expectedPt.x} but got ${actual.x}`
     );
     console.assert(
-      point1.y === point2.y,
-      `x values of points at index ${i} differ`
+      expectedPt.y === actualPt.y,
+      `expected y at index ${i} to be ${expectedPt.y} but got ${actual.y}`
     );
   }
 }
@@ -47,10 +62,21 @@ function translatePoint(point, dx, dy) {
 
 // JS rotation with no optimization
 function rotatePoint(point, radians, center) {
-  const cos = Math.cos(radians);
-  const sin = Math.cos(radians);
-  const constantX = center.x - center.x * cos + center.y * sin;
-  const constantY = center.y - center.x * sin - center.y * cos;
+  /*
+  // Approach #1 - slower
+  // Translate the point so the center is at the origin.
+  const transX = point.x - center.x;
+  const transY = point.y - center.y;
+
+  // Rotate the point.
+  const rotatedX = transX * cos - transY * sin;
+  const rotatedY = transX * sin + transY * cos;
+
+  // Translate the point back.
+  return {x: rotatedX + center.x, y: rotatedY + center.y};
+  */
+
+  // Approach #2 - faster if constants are only computed once.
   return {
     x: point.x * cos - point.y * sin + constantX,
     y: point.x * sin + point.y * cos + constantY
@@ -63,11 +89,17 @@ const points = [];
 for (let i = 0; i < POINTS; i++) {
   points.push({x: random(), y: random()});
 }
+/*
+const points = [
+  {x: 3, y: 0},
+  {x: 0, y: 4}
+];
+*/
 
 startTimer();
 const expectedTranslations = points.map(point => translatePoint(point, dx, dy));
 stopTimer('JS translations');
-console.log('demo.js: expectedTranslations =', expectedTranslations);
+//console.log('demo.js: expectedTranslations =', expectedTranslations);
 
 startTimer();
 const expectedRotations = points.map(point =>
@@ -76,71 +108,90 @@ const expectedRotations = points.map(point =>
 stopTimer('JS rotations');
 console.log('demo.js: expectedRotations =', expectedRotations);
 
-// Allocate 1 page of shared linear memory.
-const sharedMemory = new WebAssembly.Memory({
-  initial: 3,
-  maximum: 3,
-  shared: true
-});
+function createWorkers() {
+  // Allocate 1 page of shared linear memory.
+  const sharedMemory = new WebAssembly.Memory({
+    initial: PAGES,
+    maximum: PAGES,
+    shared: true
+  });
 
-// Copy point data into the shared linear memory.
-const array = new Float64Array(sharedMemory.buffer);
-let index = 0;
-for (const point of points) {
-  array[index++] = point.x;
-  array[index++] = point.y;
-}
-console.log('demo.js: untranslated point array =', array);
+  // Copy point data into the shared linear memory.
+  array = new Float64Array(sharedMemory.buffer);
+  let index = 0;
+  for (const point of points) {
+    array[index++] = point.x;
+    array[index++] = point.y;
+  }
+  //console.info('demo.js createWorkers: original point array =', array);
 
-// This creates a web worker and asks it to process a part of the array.
-function work(start, length) {
-  const myWorker = new Worker('worker.js');
-  myWorker.onmessage = event => {
-    const {data} = event;
-    if (data === 'initialized') {
-      startTimer();
-      myWorker.postMessage({command: 'run', start, length, dx, dy});
-    } else if (data === 'ran') {
-      // If the last web worker has finished processing ...
-      if (++finished === WORKERS) {
-        stopTimer('WASM rotations');
-        console.log('demo.js: new point array =', array);
-        //TODO: Measure time to calculate expected and actual.
-
-        /*
-        const actualTranslations = [];
-        for (let i = 0; i < POINTS; i++) {
-          actualTranslations.push({
-            x: array[i * 2],
-            y: array[i * 2 + 1]
-          });
-        }
-        console.log('demo.js: actualTranslations =', actualTranslations);
-        assertArraysEqual(expectedTranslations, actualTranslations);
-        */
-
-        const actualRotations = [];
-        for (let i = 0; i < POINTS; i++) {
-          actualRotations.push({
-            x: array[i * 2],
-            y: array[i * 2 + 1]
-          });
-        }
-        console.log('demo.js: actualRotations =', actualRotations);
-        //TODO: Why does this fail?
-        assertArraysEqual(expectedRotations, actualRotations);
-      }
-    } else {
-      console.error('demo.js: unsupported message', data);
+  let createdCount = 0;
+  return new Promise(resolve => {
+    for (let i = 0; i < WORKERS; i++) {
+      const worker = new Worker('worker.js');
+      workers.push(worker);
+      worker.onmessage = () => {
+        if (++createdCount === WORKERS) resolve();
+      };
+      worker.postMessage({command: 'initialize', sharedMemory});
     }
-  };
-  myWorker.postMessage({command: 'initialize', sharedMemory});
+  });
 }
 
-// Start web workers
-let finished = 0;
-const length = Math.ceil(POINTS / WORKERS);
-for (let i = 0; i < WORKERS; i++) {
-  const start = i * length;
-  work(start, Math.min(POINTS - start, length));
+function runWorkers() {
+  const length = Math.ceil(POINTS / WORKERS);
+  return new Promise(resolve => {
+    let finishCount = 0;
+    workers.forEach((worker, i) => {
+      worker.onmessage = () => {
+        if (++finishCount === WORKERS) resolve();
+      };
+      const start = i * length;
+      const len = Math.min(length, POINTS - start);
+      //worker.postMessage({command: 'translate', start, length: len, dx, dy});
+      worker.postMessage({
+        command: 'rotate',
+        start,
+        length: len,
+        radians,
+        center
+      });
+    });
+  });
 }
+
+async function run() {
+  startTimer();
+  await createWorkers();
+  stopTimer('web worker creation');
+
+  startTimer();
+  await runWorkers();
+  stopTimer('web worker run');
+
+  /*
+  const actualTranslations = [];
+  for (let i = 0; i < POINTS; i++) {
+    const index = i * 2;
+    actualTranslations.push({
+      x: array[index],
+      y: array[index + 1]
+    });
+  }
+  console.info('demo.js: actualTranslations =', actualTranslations);
+  assertArraysEqual(expectedTranslations, actualTranslations);
+  */
+
+  const actualRotations = [];
+  for (let i = 0; i < POINTS; i++) {
+    const index = i * 2;
+    actualRotations.push({
+      x: array[index],
+      y: array[index + 1]
+    });
+  }
+  console.info('demo.js: actualRotations =', actualRotations);
+  assertArraysEqual(expectedRotations, actualRotations);
+}
+
+run();

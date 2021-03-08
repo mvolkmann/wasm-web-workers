@@ -25,18 +25,15 @@ async function initialize(sharedMemory) {
   postMessage('initialized');
 }
 
-async function run(start, length, dx, dy) {
+async function rotate(start, length, radians, center) {
+  rotatePoints(start, length, radians, center.x, center.y);
+  postMessage('ran');
+}
+
+async function translate(start, length, dx, dy) {
   //TODO: How can the WASM code use Atomics functions to
   //TODO: safely perform concurrent updates to the shared memory?
-  //translatePoints(start, length, dx, dy);
-
-  const cx = 0;
-  const cy = 0;
-  const degrees = 45;
-  const radians = (degrees * Math.PI) / 180;
-  rotatePoints(start, length, radians, cx, cy);
-
-  // Inform the main thread that translation is finished.
+  translatePoints(start, length, dx, dy);
   postMessage('ran');
 }
 
@@ -45,9 +42,10 @@ onmessage = event => {
   const {command} = data;
   if (command === 'initialize') {
     initialize(data.sharedMemory);
-  } else if (command === 'run') {
-    const {dx, dy, length, start} = data;
-    run(start, length, dx, dy);
+  } else if (command === 'rotate') {
+    rotate(data.start, data.length, data.radians, data.center);
+  } else if (command === 'translate') {
+    translate(data.start, data.length, data.dx, data.dy);
   } else {
     console.error('worker.js requires length and sharedMemory');
   }
