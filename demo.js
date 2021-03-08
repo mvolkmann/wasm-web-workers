@@ -1,4 +1,5 @@
-const POINTS = 1000000;
+const POINTS = 1_000_000;
+//const POINTS = 10;
 //const PAGE_SIZE = 64; // KB
 //const PAGE_BYTES = PAGE_SIZE * 1024;
 //const PAGES = Math.ceil((POINTS * 16) / PAGE_BYTES);
@@ -13,8 +14,10 @@ const dx = 2;
 const dy = 3;
 
 // For rotations
-const center = {x: 0, y: 0};
-const degrees = 90; //45;
+//const center = {x: 0, y: 0};
+const center = {x: 2, y: 3};
+//const degrees = 90;
+const degrees = 45;
 const radians = (degrees * Math.PI) / 180;
 const cos = Math.cos(radians);
 const sin = Math.sin(radians);
@@ -89,6 +92,7 @@ const points = [];
 for (let i = 0; i < POINTS; i++) {
   points.push({x: random(), y: random()});
 }
+console.log('demo.js: points =', points);
 /*
 const points = [
   {x: 3, y: 0},
@@ -165,6 +169,9 @@ async function run() {
   await createWorkers();
   stopTimer('web worker creation');
 
+  // Time to create the workers is not included in the total time
+  // because in a real app the workers would be created only once,
+  // but the transformations would be performed repeatedly.
   startTimer();
   await runWorkers();
   stopTimer('web worker run');
