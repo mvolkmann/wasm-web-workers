@@ -34,3 +34,9 @@ is faster than not using workers (see code in `without-wasm` directory) are:
 2. Using multiple web workers allows work to be done in parallel.
 
 The use of WASM seems to have no benefit in this example.
+
+Note that the time to copy the point data from a normal JS array
+into a `SharedArrayBuffer` is part of "web worker creation",
+but even considering that time it is still faster.
+This is true even if only a single Web Worker is used, so really
+reason #1 (avoiding hash lookups) above is the primary benefit.
